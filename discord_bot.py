@@ -4,7 +4,12 @@ import discord
 import botometer
 import re
 import os
+import asyncio
 from web3.auto.infura import w3
+import logging
+logging.basicConfig(level=logging.INFO)
+
+logging.info("Starting HumanityDAO bot")
 
 
 mashape_key = os.getenv("MASHAPE_KEY")
@@ -26,11 +31,29 @@ twitter_humanity_applicant = w3.eth.contract(
 
 
 class MyClient(discord.Client):
+    def __init(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # create the background task and run it in the background
+        self.bg_wait_for_new_applicants = self.loop.create_task(self.wait_for_new_applicants())
+
     async def on_ready(self):
-        print('Logged in as')
-        print(self.user.name)
-        print(self.user.id)
-        print('------')
+        logging.info('Logged in as %s (%s)' % (self.user.name, self.user.id))
+
+    async def wait_for_new_applicants(self):
+        await self.wait_until_ready()
+        channel = self.get_channel(os.getenv("NEW_APPLICANT_VERIFY_CHANNEL"))
+
+        # Prepare filter to use for searching for new applicants - starts by default from current block
+        event_filter = twitter_humanity_applicant.events.Apply.createFilter()
+
+        while not self.is_closed():
+            applicant_events = event_filter.get_new_entries()
+            for event in applicant_events:
+                # Get new user twitter handle - not implemented yet
+                logging.info("Found new applicant: %s" % event)
+
+            await asyncio.sleep(300)
 
     async def on_message(self, message):
         # we do not want the bot to reply to itself
@@ -94,6 +117,7 @@ class MyClient(discord.Client):
             )
             return
         else:
+            logging.info("Found Apply event for a user: %s" % applicant_events[0])
             await message.channel.send(
                 "[OK] Verified Ethereum address %s in application for %s" % (eth_addr, twitter_name)
             )
@@ -122,21 +146,6 @@ class MyClient(discord.Client):
         await message.channel.send(
             "All done, nothing more to check"
         )
-
-
-
-from http.server import BaseHTTPRequestHandler
-from cowpy import cow
-
-
-class handler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header('Content-type','text/plain')
-        self.end_headers()
-        message = cow.Cowacter().milk('HumanityDAO Discord Bot')
-        self.wfile.write(message.encode())
-        return
 
 
 client = MyClient()

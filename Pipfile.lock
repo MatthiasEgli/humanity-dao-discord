@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "8bd0a8a8415ad9ffa25bf5eb8e019f36af04c9619bd75f47bad2b3d3986dd4e2"
+            "sha256": "4f3e15033f4b60b241656532bc6191c9dde67b01bf2df7b578f1a50d8ad9bdc6"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -73,10 +73,10 @@
         },
         "certifi": {
             "hashes": [
-                "sha256:59b7658e26ca9c7339e00f8f4636cdfe59d34fa37b9b04f6f9e9926b3cece1a5",
-                "sha256:b26104d6835d1f5e49452a26eb2ff87fe7090b89dfcaee5ea2212697e1e1d7ae"
+                "sha256:046832c04d4e752f37383b628bc601a7ea7211496b4638f6514d0e5b9acc4939",
+                "sha256:945e3ba63a0b9f577b1395204e13c3a231f9bc0223888be653286534e5873695"
             ],
-            "version": "==2019.3.9"
+            "version": "==2019.6.16"
         },
         "chardet": {
             "hashes": [
@@ -84,13 +84,6 @@
                 "sha256:fc323ffcaeaed0e0a02bf4d117757b98aed530d9ed4531e3e15460124c106691"
             ],
             "version": "==3.0.4"
-        },
-        "cowpy": {
-            "hashes": [
-                "sha256:1bdc61d107df02fd34a9241f2220d0704a01d8ce16bed8bff3512a34a0efa56a"
-            ],
-            "index": "pypi",
-            "version": "==1.1.0"
         },
         "cytoolz": {
             "hashes": [
@@ -109,9 +102,9 @@
         },
         "discord.py": {
             "hashes": [
-                "sha256:c3dacb6461cd326ef37807b5b95b5f8bd3f0e4daf11aa77ef112e953abd73c51"
+                "sha256:ee6ee8f52145e550f534c1858169fa49f3b355ad708a021cd59a934ee963ccc7"
             ],
-            "version": "==1.2.1"
+            "version": "==1.2.2"
         },
         "eth-abi": {
             "hashes": [
@@ -143,10 +136,10 @@
         },
         "eth-keys": {
             "hashes": [
-                "sha256:6f6a9437f7ba5849f233b65ac57008f773595d6e38dd82ae6807cf999ecb358f",
-                "sha256:d2930c18d2b2bf7a027cb338bfacae727f024ea5cb07f23ee7b306fb8d226874"
+                "sha256:d1cdcd6b2118edf5dcd112ba6efc4b187b028c5c7d6af6ca04d90b7af94a1c58",
+                "sha256:e15a0140852552ec3eb07e9731e23d390aea4bae892022279af42ce32e9c2620"
             ],
-            "version": "==0.2.3"
+            "version": "==0.2.4"
         },
         "eth-rlp": {
             "hashes": [
@@ -164,10 +157,10 @@
         },
         "eth-utils": {
             "hashes": [
-                "sha256:661a3033fb117bc9aa0ac8c28c903561c73d8f5cf2b4349815e5b4a001df6627",
-                "sha256:88985b36d1a0a463d77edb41a8eb98c4f95658f9e9ec5cc6a35ec3623ca65f49"
+                "sha256:9e5d08264db94676714dd571a1c91ff8edb90e938e773eabb94af82902dc5212",
+                "sha256:f2fe7828ae827f38bdf51ae002f26d5eaa974eeaa3470f30d7ac705605c7a058"
             ],
-            "version": "==1.6.0"
+            "version": "==1.6.1"
         },
         "hexbytes": {
             "hashes": [

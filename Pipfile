@@ -8,7 +8,6 @@ discord = "*"
 botometer = "*"
 tweepy = "*"
 web3 = "*"
-cowpy = "*"
 python-dotenv = "*"
 
 [dev-packages]
