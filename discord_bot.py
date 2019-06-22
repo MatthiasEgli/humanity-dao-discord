@@ -3,7 +3,6 @@ load_dotenv()
 import discord
 import botometer
 import re
-import json
 import os
 from web3.auto.infura import w3
 
@@ -81,6 +80,7 @@ class MyClient(discord.Client):
             )
             return
 
+        await message.channel.trigger_typing()
         # Compare Ethereum address with the one registered in HumanityDAO smart contract
         event_filter = twitter_humanity_applicant.events.Apply.createFilter(
             fromBlock=0,
@@ -94,11 +94,13 @@ class MyClient(discord.Client):
             )
             return
         else:
-            print(applicant_events)
+            await message.channel.send(
+                "[OK] Verified Ethereum address %s in application for %s" % (eth_addr, twitter_name)
+            )
 
+        await message.channel.trigger_typing()
         # Check bot score
         result = bom.check_account(twitter_name)
-        print(result)
 
         if any(score > 0.3 for score in result["scores"].values()):
             await message.channel.send(
@@ -116,6 +118,10 @@ class MyClient(discord.Client):
             await message.channel.send(
                 "[OK] This twitter account doesn't look like a bot"
             )
+
+        await message.channel.send(
+            "All done, nothing more to check"
+        )
 
 
 
