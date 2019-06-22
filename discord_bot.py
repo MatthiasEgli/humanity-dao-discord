@@ -42,6 +42,8 @@ class MyClient(discord.Client):
 
     async def wait_for_new_applicants(self):
         await self.wait_until_ready()
+        logging.info("Start polling for new applicants")
+
         channel = self.get_channel(os.getenv("NEW_APPLICANT_VERIFY_CHANNEL"))
 
         # Prepare filter to use for searching for new applicants - starts by default from current block
@@ -49,6 +51,8 @@ class MyClient(discord.Client):
 
         while not self.is_closed():
             applicant_events = event_filter.get_new_entries()
+            logging.info("Found %i new applicants" % len(applicant_events))
+
             for event in applicant_events:
                 # Get new user twitter handle - not implemented yet
                 logging.info("Found new applicant: %s" % event)
