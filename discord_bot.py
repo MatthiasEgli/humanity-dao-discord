@@ -30,34 +30,154 @@ twitter_humanity_applicant = w3.eth.contract(
 )
 
 
-class MyClient(discord.Client):
-    def __init(self, *args, **kwargs):
+class HumanityDAODiscordBot(discord.Client):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         # create the background task and run it in the background
+        logging.info("Going to start background polling")
         self.bg_wait_for_new_applicants = self.loop.create_task(self.wait_for_new_applicants())
+
+    def find_ethereum_address_in_tweet(self, twitter_handle):
+        """ Find for the given twitter user the tweeted Ethereum address mentioned in the application for HumanityDAO
+
+        :param twitter_handle: (String) twitter username
+        :returns: (String) Ethereum address which this user tweeted to
+        :raises: LookupError if there was an issue with finding a (unique) address
+        """
+        # Search for HumanityDAO tweet
+        recent_tweets = bom.twitter_api.user_timeline(twitter_handle)
+
+        # Get the Ethereum address from the tweet
+        eth_addr = None
+        for t in recent_tweets:
+            if any(user_mention['id'] == 1118447927112781824 for user_mention in t['entities']['user_mentions']):
+                # Tweet about HumanityDAO found, now time to extract the Ethereum address
+                eth_addr_regex = re.search('(0x[0-9a-f]{40})', t['text'])
+                if eth_addr_regex is not None:
+                    if eth_addr is None:
+                        eth_addr = eth_addr_regex.group()
+                    elif eth_addr != eth_addr_regex.group():
+                        # Multiple tweets with diverting eth addresses, this is a problem!
+                        raise LookupError("Found multiple tweets with diverting ETH addresses!")
+
+        if eth_addr is None:
+            raise LookupError("Couldn't find any tweet regarding HumanityDAO with a valid Ethereum address")
+
+        return eth_addr
+
+    def verify_tweet(self, twitter_handle, ethereum_address):
+        """ Verify if the given twitter user tweeted the given Ethereum address to verify as human
+
+        :param twitter_handle: (String) twitter username
+        :param ethereum_address: (String) Ethereum address
+        :raises: LookupError if the twitter user didn't tweet the given address
+        """
+        # Get the Ethereum address from the tweet
+        eth_addr = self.find_ethereum_address_in_tweet(twitter_handle)
+
+        if eth_addr.lower() != ethereum_address.lower():
+            raise LookupError("Tweet has different Ethereum address: %s != %s" %(eth_addr, ethereum_address))
+
+    def get_twitter_users_for_applicant_address(self, application_address):
+        """ Finds the twitter username when given an application address
+
+        :param application_address: (String) Ethereum address
+        :return: All twitter usernames who used this application address
+        """
+        event_filter = twitter_humanity_applicant.events.Apply.createFilter(
+            fromBlock=0,
+            toBlock="latest",
+            argument_filters={'applicant': application_address}
+        )
+        applicant_events = event_filter.get_all_entries()
+
+        return [e.args.username for e in applicant_events]
 
     async def on_ready(self):
         logging.info('Logged in as %s (%s)' % (self.user.name, self.user.id))
 
     async def wait_for_new_applicants(self):
+        """ Poll Ethereum for new applications and check if they are valid
+
+        :return: None
+        """
+        logging.info("Starting background polling - waiting until ready")
         await self.wait_until_ready()
-        logging.info("Start polling for new applicants")
+        logging.info("Starting background polling - ready")
 
-        channel = self.get_channel(os.getenv("NEW_APPLICANT_VERIFY_CHANNEL"))
-
-        # Prepare filter to use for searching for new applicants - starts by default from current block
-        event_filter = twitter_humanity_applicant.events.Apply.createFilter()
+        channel = self.get_channel(int(os.getenv("NEW_APPLICANT_VERIFY_CHANNEL")))
+        last_checked_block = int(os.getenv("FIRST_BLOCK"))
 
         while not self.is_closed():
-            applicant_events = event_filter.get_new_entries()
-            logging.info("Found %i new applicants" % len(applicant_events))
+            logging.info("Polling for new entries")
+            # Prepare filter to use for searching for new applicants
+            latest_block = w3.eth.getBlock('latest')["number"]
+            # Preferring to re-create filter every time as it might have timed out anyways
+            event_filter = twitter_humanity_applicant.events.Apply.createFilter(
+                fromBlock=last_checked_block,
+                toBlock=latest_block
+            )
+            applicant_events = event_filter.get_all_entries()
+            logging.info("Found %i new applicants from block %i to %i" % (
+                len(applicant_events),
+                last_checked_block,
+                latest_block
+            ))
+            last_checked_block = latest_block
 
             for event in applicant_events:
-                # Get new user twitter handle - not implemented yet
-                logging.info("Found new applicant: %s" % event)
+                # Get new user twitter handle
+                twitter_handle = event.args.username
+                ethereum_address = event.args.applicant
+                proposal_id = event.args.proposalId
 
-            await asyncio.sleep(300)
+                logging.info("Handling applicant %s (Proposal %i, address %s)" % (
+                    twitter_handle, proposal_id, ethereum_address
+                ))
+
+                await channel.send(
+                    "New applicant found! Going to check proposal %i for user %s (%s) now..." % (
+                        proposal_id, twitter_handle, ethereum_address
+                    )
+                )
+
+                # Verify tweet
+                try:
+                    self.verify_tweet(twitter_handle, ethereum_address)
+                except LookupError as e:
+                    await channel.send(
+                        "[WARNING] New applicant %s with proposal %i didn't tweet address %s!" % (
+                            twitter_handle, proposal_id, ethereum_address
+                        )
+                    )
+                    logging.warning(e)
+                    continue
+
+                # Check for twitter bot
+                await channel.trigger_typing()
+                result = bom.check_account(twitter_handle)
+
+                if any(score > 0.3 for score in result["scores"].values()):
+                    await channel.send(
+                        "[WARNING] The twitter account might be a bot, check manually. "
+                        "The following scores (0 = human, 5=bot) have been determined: %s"
+                        % (" ".join("%s: %1.1f" % (k, v) for k, v in result["display_scores"].items()))
+                    )
+                    continue
+                elif any(score > 0.8 for score in result["scores"].values()):
+                    await channel.send(
+                        "[WARNING] The twitter account is very likely a bot!!! "
+                        "The following scores (0 = human, 5=bot) have been determined: %s"
+                        % (" ".join("%s: %1.1f" % (k, v) for k, v in result["display_scores"].items()))
+                    )
+                    continue
+
+                await channel.send(
+                    "[OK] Looks good! Please welcome %s to HumanityDAO!" % twitter_handle
+                )
+
+            await asyncio.sleep(15)
 
     async def on_message(self, message):
         # we do not want the bot to reply to itself
@@ -79,55 +199,46 @@ class MyClient(discord.Client):
 
         twitter_name = m.group()
 
-        # Search for HumanityDAO tweet
-        recent_tweets = bom.twitter_api.user_timeline(twitter_name)
-
-        # Get the Ethereum address from the tweet
-        eth_addr = None
-        for t in recent_tweets:
-            if any(user_mention['id'] == 1118447927112781824 for user_mention in t['entities']['user_mentions']):
-                # Tweet about HumanityDAO found, now time to extract the Ethereum address
-                eth_addr_regex = re.search('(0x[0-9a-f]{40})', t['text'])
-                if eth_addr_regex is not None:
-                    if eth_addr is None:
-                        eth_addr = eth_addr_regex.group()
-                        await message.channel.send(
-                            "[OK] Found tweet with Ethereum address %s for %s" % (eth_addr, twitter_name)
-                        )
-                    elif eth_addr != eth_addr_regex.group():
-                        # Multiple tweets with diverting eth addresses, this is a problem!
-                        await message.channel.send(
-                            "[WARNING] Account %s posted multiple tweets with different "
-                            "ethereum addresses, aborting" % twitter_name
-                        )
-                        return
-        if eth_addr is None:
+        # Search for tweeted Ethereum address - only way as we can't search for twitter applicants in Ethereum directly
+        try:
+            await message.channel.trigger_typing()
+            eth_addr = self.find_ethereum_address_in_tweet(twitter_name)
             await message.channel.send(
-                "[WARNING] Couldn't detect tweet with Ethereum address for %s" % twitter_name
+                "[OK] Found tweet with Ethereum address %s for %s" % (eth_addr, twitter_name)
+            )
+        except LookupError as e:
+            await message.channel.send(
+                "[WARNING] Applicant %s didn't tweet his application correctly! Error: %s" % (
+                    twitter_name, e
+                )
+            )
+            logging.warning(e)
+            return
+
+        # Search on Ethereum for the applicant address and compare with twitter user
+        await message.channel.trigger_typing()
+        twitter_names = self.get_twitter_users_for_applicant_address(eth_addr)
+
+        # Make sure that we found something
+        if not twitter_names:
+            await message.channel.send(
+                "[WARNING] Couldn't find any on-chain applications for HumanityDAO for %s" % eth_addr
             )
             return
 
-        await message.channel.trigger_typing()
-        # Compare Ethereum address with the one registered in HumanityDAO smart contract
-        event_filter = twitter_humanity_applicant.events.Apply.createFilter(
-            fromBlock=0,
-            toBlock="latest",
-            argument_filters={'applicant': eth_addr}
+        # Make sure that if there are multiple applications, they always use the same address
+        if not all([twitter_names[0] == name for name in twitter_names]):
+            await message.channel.send(
+                "[WARNING] Applicant %s applied with multiple different twitter handles" % eth_addr
+            )
+            return
+
+        await message.channel.send(
+            "[OK] Verified address %s in tweet and on-chain to be identical" % eth_addr
         )
-        applicant_events = event_filter.get_all_entries()
-        if not applicant_events:
-            await message.channel.send(
-                "[WARNING] Couldn't find any on-chain applications for HumanityDAO with Ethereum address %s" % eth_addr
-            )
-            return
-        else:
-            logging.info("Found Apply event for a user: %s" % applicant_events[0])
-            await message.channel.send(
-                "[OK] Verified Ethereum address %s in application for %s" % (eth_addr, twitter_name)
-            )
 
+        # Check if user is a bot
         await message.channel.trigger_typing()
-        # Check bot score
         result = bom.check_account(twitter_name)
 
         if any(score > 0.3 for score in result["scores"].values()):
@@ -152,5 +263,5 @@ class MyClient(discord.Client):
         )
 
 
-client = MyClient()
+client = HumanityDAODiscordBot()
 client.run(os.getenv("DISCORD_BOT_TOKEN"))
