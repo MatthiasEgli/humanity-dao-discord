@@ -8,6 +8,7 @@ import asyncio
 from web3.auto.infura import w3
 import logging
 logging.basicConfig(level=logging.INFO)
+from tweepy.error import TweepError
 
 logging.info("Starting HumanityDAO bot")
 
@@ -46,7 +47,11 @@ class HumanityDAODiscordBot(discord.Client):
         :raises: LookupError if there was an issue with finding a (unique) address
         """
         # Search for HumanityDAO tweet
-        recent_tweets = bom.twitter_api.user_timeline(twitter_handle)
+        try:
+            recent_tweets = bom.twitter_api.user_timeline(twitter_handle)
+        except TweepError as e:
+            # Potentially invalid twitter user
+            raise LookupError("Error when searching for tweet: %s" % e)
 
         # Get the Ethereum address from the tweet
         eth_addr = None
