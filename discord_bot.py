@@ -177,6 +177,8 @@ class HumanityDAODiscordBot(discord.Client):
                     "[OK] Looks good! Please welcome %s to HumanityDAO!" % twitter_handle
                 )
 
+            logging.info("Completed automatic check for new applicants")
+
             await asyncio.sleep(15)
 
     async def on_message(self, message):
